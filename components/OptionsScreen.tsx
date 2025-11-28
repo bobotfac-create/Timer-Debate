@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { BellSettings, SoundType } from '../types';
-import { ArrowLeft, Bell, Upload, PlayCircle, Heart } from 'lucide-react';
+import { ArrowLeft, Bell, Upload, PlayCircle } from 'lucide-react';
 import { playSynthesizedSound, playAudioBuffer, initAudioContext } from '../utils/audioUtils';
 
 interface Props {
@@ -10,7 +10,6 @@ interface Props {
   onLoadCustomAudio: (buffer: AudioBuffer, name: string) => void;
   customAudioName: string | null;
   customAudioBuffer: AudioBuffer | null;
-  yerkoBuffer: AudioBuffer | null;
 }
 
 export const OptionsScreen: React.FC<Props> = ({ 
@@ -20,7 +19,6 @@ export const OptionsScreen: React.FC<Props> = ({
   onLoadCustomAudio,
   customAudioName,
   customAudioBuffer,
-  yerkoBuffer
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,8 +26,6 @@ export const OptionsScreen: React.FC<Props> = ({
     const ctx = initAudioContext();
     if (settings.sound === 'custom' && customAudioBuffer) {
       playAudioBuffer(ctx, customAudioBuffer);
-    } else if (settings.sound === 'yerko' && yerkoBuffer) {
-      playAudioBuffer(ctx, yerkoBuffer);
     } else {
       playSynthesizedSound(ctx, settings.sound);
     }
@@ -80,19 +76,6 @@ export const OptionsScreen: React.FC<Props> = ({
                 {settings.sound === type && <Bell className="w-5 h-5 fill-current" />}
               </button>
             ))}
-
-            {/* Yerko Button */}
-            <button
-                onClick={() => onUpdateSettings({ ...settings, sound: 'yerko' })}
-                className={`p-4 rounded-xl border flex items-center justify-between group transition-all ${
-                  settings.sound === 'yerko' 
-                  ? 'bg-rose-500/10 border-rose-500 text-rose-400' 
-                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:border-slate-600'
-                }`}
-              >
-                <span className="capitalize">Para ti Yerko</span>
-                {settings.sound === 'yerko' ? <Heart className="w-5 h-5 fill-current" /> : <Heart className="w-5 h-5" />}
-            </button>
             
             {/* Custom Sound Button */}
             <div className={`p-4 rounded-xl border flex flex-col gap-3 transition-all ${

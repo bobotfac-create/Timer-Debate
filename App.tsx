@@ -1,12 +1,16 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ScreenType, FormatType, TimerState, Speech, BellSettings, CustomAudioState } from './types';
+import { ScreenType, FormatType, TimerState, Speech, BellSettings, CustomAudioState, Theme } from './types';
 import { FormatSelectionScreen } from './components/FormatSelectionScreen';
 import { ConfigScreen } from './components/ConfigScreen';
 import { TimerScreen } from './components/TimerScreen';
 import { OptionsScreen } from './components/OptionsScreen';
+import { MotionGeneratorScreen } from './components/MotionGeneratorScreen';
 import { initAudioContext, playSynthesizedSound, playAudioBuffer, unlockAudioContext } from './utils/audioUtils';
 
 const App: React.FC = () => {
+  // Theme State
+  const [theme, setTheme] = useState<Theme>('modern');
+
   // Navigation State
   const [screen, setScreen] = useState<ScreenType>('format');
   const [format, setFormat] = useState<FormatType>(null);
@@ -30,10 +34,6 @@ const App: React.FC = () => {
   const [bellRung, setBellRung] = useState(0);
   const [customAudio, setCustomAudio] = useState<CustomAudioState>({ buffer: null, fileName: null });
   
-  // Audio Buffers
-  const [yerkoRawBuffer, setYerkoRawBuffer] = useState<ArrayBuffer | null>(null);
-  const [yerkoDecodedBuffer, setYerkoDecodedBuffer] = useState<AudioBuffer | null>(null);
-  
   const audioContextRef = useRef<AudioContext | null>(null);
 
   // Helper to ensure AudioContext is ready and UNLOCKED (Crucial for iOS)
@@ -48,41 +48,10 @@ const App: React.FC = () => {
     return audioContextRef.current;
   };
 
-  // Helper to activate audio system and decode pending buffers
+  // Helper to activate audio system (mainly for iOS unlock)
   const activateAudioSystem = () => {
-    const ctx = ensureAudioContext();
-    
-    // Decode Yerko if we have raw data but haven't decoded it yet
-    if (yerkoRawBuffer && !yerkoDecodedBuffer) {
-      // Clone the buffer because decodeAudioData might detach it
-      const bufferClone = yerkoRawBuffer.slice(0);
-      ctx.decodeAudioData(bufferClone)
-        .then(decoded => {
-          console.log("Yerko audio decoded successfully");
-          setYerkoDecodedBuffer(decoded);
-        })
-        .catch(err => console.error("Error decoding Yerko audio:", err));
-    }
+    ensureAudioContext();
   };
-
-  // 1. Fetch the audio file as ArrayBuffer on mount (Don't decode yet)
-  useEffect(() => {
-    const fetchYerkoSound = async () => {
-      try {
-        const response = await fetch('/assets/AudioT.mp3');
-        if (!response.ok) {
-           console.warn("AudioT.mp3 not found at /assets/AudioT.mp3");
-           return;
-        }
-        const arrayBuffer = await response.arrayBuffer();
-        setYerkoRawBuffer(arrayBuffer);
-        console.log("AudioT.mp3 loaded into memory");
-      } catch (error) {
-        console.error("Could not load AudioT.mp3 raw data", error);
-      }
-    };
-    fetchYerkoSound();
-  }, []);
 
   // Sound Player
   const triggerBell = useCallback((times: number) => {
@@ -98,8 +67,6 @@ const App: React.FC = () => {
     const playOne = () => {
       if (bellSettings.sound === 'custom' && customAudio.buffer) {
         playAudioBuffer(ctx, customAudio.buffer);
-      } else if (bellSettings.sound === 'yerko' && yerkoDecodedBuffer) {
-        playAudioBuffer(ctx, yerkoDecodedBuffer);
       } else {
         playSynthesizedSound(ctx, bellSettings.sound);
       }
@@ -120,7 +87,7 @@ const App: React.FC = () => {
         count++;
       }, bellSettings.interval);
     }
-  }, [bellSettings, customAudio, yerkoDecodedBuffer]);
+  }, [bellSettings, customAudio]);
 
   // Logic: Navigation & Setup
   const handleSelectFormat = (fmt: FormatType) => {
@@ -132,6 +99,10 @@ const App: React.FC = () => {
   const handleOpenOptions = () => {
     activateAudioSystem();
     setScreen('options');
+  };
+
+  const handleOpenGenerator = () => {
+    setScreen('motion-generator');
   };
 
   const handleStartDebate = (queue: Speech[]) => {
@@ -176,45 +147,30 @@ const App: React.FC = () => {
   useEffect(() => {
     if (timerState !== 'running') return;
 
-    // Time elapsed = totalDuration - currentTime
-    const elapsed = totalDuration - currentTime;
     const currentSpeech = speechQueue[currentSpeechIndex];
 
-    // Special Logic for Prep Time (specific alarm times based on REMAINING time)
-    if (currentSpeech && currentSpeech.isPrep && currentSpeech.alarmTimes) {
-      currentSpeech.alarmTimes.forEach(remainingSecondsTarget => {
+    if (currentSpeech) {
+      // Unified Alarm Logic using alarmTimes (defined in ConfigScreen for all speeches)
+      // alarmTimes contains the REMAINING seconds when the bell should ring
+      const alarms = currentSpeech.alarmTimes || [];
+      
+      alarms.forEach(targetRemaining => {
          // Check if current time (remaining) matches target
-         if (Math.abs(currentTime - remainingSecondsTarget) < 0.5 && lastRingRef.current !== remainingSecondsTarget) {
+         if (Math.abs(currentTime - targetRemaining) < 0.5 && lastRingRef.current !== targetRemaining) {
              triggerBell(bellSettings.repetitions);
-             lastRingRef.current = remainingSecondsTarget;
+             lastRingRef.current = targetRemaining;
          }
       });
-      // Clear ref if we are far from current alarm
-      if (lastRingRef.current !== null && Math.abs(currentTime - lastRingRef.current) > 2) {
-        lastRingRef.current = null;
+
+      // Reset ref if we move away from any alarm checkpoint
+      // This prevents re-ringing if we hover around a time, but allows ringing different alarms
+      const isNearAny = alarms.some(t => Math.abs(currentTime - t) < 2);
+      if (!isNearAny && lastRingRef.current !== null) {
+          lastRingRef.current = null;
       }
-      return; // Skip standard logic for prep time
-    }
-    
-    // Standard Debate Logic (Protected Minutes)
-    // 1. End of initial protected time (e.g. 1st minute passed)
-    if (Math.abs(elapsed - protectedSeconds) < 0.5 && lastRingRef.current !== protectedSeconds) {
-       triggerBell(bellSettings.repetitions);
-       lastRingRef.current = protectedSeconds;
-    }
-    
-    // 2. Start of final protected time (e.g. 1 minute remaining)
-    if (Math.abs(currentTime - protectedSeconds) < 0.5 && lastRingRef.current !== currentTime) {
-       triggerBell(bellSettings.repetitions);
-       lastRingRef.current = currentTime;
     }
 
-    // Reset ref if we move away from checkpoints
-    if (Math.abs(elapsed - protectedSeconds) > 2 && Math.abs(currentTime - protectedSeconds) > 2) {
-       lastRingRef.current = null;
-    }
-
-  }, [currentTime, totalDuration, protectedSeconds, timerState, triggerBell, bellSettings.repetitions, speechQueue, currentSpeechIndex]);
+  }, [currentTime, timerState, triggerBell, bellSettings.repetitions, speechQueue, currentSpeechIndex]);
 
 
   // Logic: Timer Controls
@@ -249,11 +205,13 @@ const App: React.FC = () => {
 
   // Rendering
   return (
-    <div className="h-screen w-full bg-slate-900 text-slate-100 overflow-hidden">
+    <div className="h-[100dvh] w-full bg-slate-900 text-slate-100 overflow-hidden">
       {screen === 'format' && (
         <FormatSelectionScreen 
           onSelectFormat={handleSelectFormat} 
-          onOpenOptions={handleOpenOptions} 
+          onOpenOptions={handleOpenOptions}
+          onOpenGenerator={handleOpenGenerator}
+          theme={theme}
         />
       )}
 
@@ -261,7 +219,8 @@ const App: React.FC = () => {
         <ConfigScreen 
           format={format} 
           onBack={() => setScreen('format')} 
-          onStart={handleStartDebate} 
+          onStart={handleStartDebate}
+          theme={theme}
         />
       )}
 
@@ -273,7 +232,15 @@ const App: React.FC = () => {
           onLoadCustomAudio={(buf, name) => setCustomAudio({ buffer: buf, fileName: name })}
           customAudioName={customAudio.fileName}
           customAudioBuffer={customAudio.buffer}
-          yerkoBuffer={yerkoDecodedBuffer}
+          theme={theme}
+          onSetTheme={setTheme}
+        />
+      )}
+
+      {screen === 'motion-generator' && (
+        <MotionGeneratorScreen 
+          onBack={() => setScreen('format')}
+          theme={theme}
         />
       )}
 
@@ -295,6 +262,7 @@ const App: React.FC = () => {
           }}
           isLastSpeech={currentSpeechIndex >= speechQueue.length - 1}
           isFirstSpeech={currentSpeechIndex === 0}
+          theme={theme}
         />
       )}
     </div>

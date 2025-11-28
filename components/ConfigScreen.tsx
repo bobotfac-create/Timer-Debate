@@ -1,7 +1,7 @@
 import React from 'react';
 import { useForm, useFieldArray, UseFormRegisterReturn, UseFormRegister, FieldValues, Path } from 'react-hook-form';
 import { FormatType, Speech } from '../types';
-import { ArrowLeft, Trash2, Plus, Clock } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, Clock, BellRing } from 'lucide-react';
 
 interface Props {
   format: FormatType;
@@ -23,6 +23,9 @@ interface WSDCFormData extends CommonFormData {
   speech2Min: number; speech2Sec: number;
   speech3Min: number; speech3Sec: number;
   speech4Min: number; speech4Sec: number;
+  // Specific alarm for Reply speeches
+  replyAlarmMin: number; 
+  replyAlarmSec: number;
 }
 
 interface BPFormData extends CommonFormData {
@@ -134,7 +137,8 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
       speech2Min: 8, speech2Sec: 0,
       speech3Min: 8, speech3Sec: 0,
       speech4Min: 4, speech4Sec: 0,
-      prepEnabled: false, prepMin: 15, prepSec: 0, prepAlarms: ""
+      prepEnabled: false, prepMin: 15, prepSec: 0, prepAlarms: "",
+      replyAlarmMin: 1, replyAlarmSec: 0 // Default alarm at 1 minute remaining
     }
   });
 
@@ -161,6 +165,20 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
 
   // Helpers
   const getSeconds = (min: number, sec: number) => (Number(min) * 60) + Number(sec);
+
+  // Helper to generate alarm times (in REMAINING seconds)
+  const getAlarmTimes = (duration: number, protectedSec: number, skipStart: boolean = false) => {
+    const alarms: number[] = [];
+    // Start protected bell (e.g. at 1 min elapsed -> duration - protectedSec remaining)
+    if (!skipStart && duration > protectedSec) {
+      alarms.push(duration - protectedSec);
+    }
+    // End protected bell (e.g. at 1 min remaining -> protectedSec remaining)
+    if (duration > protectedSec) {
+      alarms.push(protectedSec);
+    }
+    return alarms;
+  };
 
   const getPrepSpeech = (enabled: boolean, min: number, sec: number, alarmsStr: string): Speech | null => {
     if (!enabled) return null;
@@ -189,16 +207,28 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
     const s2 = getSeconds(data.speech2Min, data.speech2Sec);
     const s3 = getSeconds(data.speech3Min, data.speech3Sec);
     const s4 = getSeconds(data.speech4Min, data.speech4Sec);
+    
+    const replyAlarmTime = getSeconds(data.replyAlarmMin, data.replyAlarmSec);
+
+    const createSpeech = (id: string, title: string, duration: number, customAlarms: number[] | null = null): Speech => ({
+      id,
+      title,
+      duration,
+      protectedSeconds: data.protectedSeconds,
+      // Use specific alarms if provided, otherwise default protected time logic
+      alarmTimes: customAlarms ? customAlarms : getAlarmTimes(duration, data.protectedSeconds)
+    });
 
     const queue: Speech[] = [
-      { id: '1', title: 'Introducción Gobierno', duration: s1, protectedSeconds: data.protectedSeconds },
-      { id: '2', title: 'Introducción Oposición', duration: s1, protectedSeconds: data.protectedSeconds },
-      { id: '3', title: 'Argumentación Gobierno', duration: s2, protectedSeconds: data.protectedSeconds },
-      { id: '4', title: 'Argumentación Oposición', duration: s2, protectedSeconds: data.protectedSeconds },
-      { id: '5', title: 'Contra Gobierno', duration: s3, protectedSeconds: data.protectedSeconds },
-      { id: '6', title: 'Contra Oposición', duration: s3, protectedSeconds: data.protectedSeconds },
-      { id: '7', title: 'Replica Oposición', duration: s4, protectedSeconds: Math.max(0, data.protectedSeconds / 2) },
-      { id: '8', title: 'Replica Gobierno', duration: s4, protectedSeconds: Math.max(0, data.protectedSeconds / 2) },
+      createSpeech('1', 'Introducción Gobierno', s1),
+      createSpeech('2', 'Introducción Oposición', s1),
+      createSpeech('3', 'Argumentación Gobierno', s2),
+      createSpeech('4', 'Argumentación Oposición', s2),
+      createSpeech('5', 'Contra Gobierno', s3),
+      createSpeech('6', 'Contra Oposición', s3),
+      // Use the specific reply alarm time configured by user
+      createSpeech('7', 'Replica Oposición', s4, [replyAlarmTime]), 
+      createSpeech('8', 'Replica Gobierno', s4, [replyAlarmTime]), 
     ];
 
     const prep = getPrepSpeech(data.prepEnabled, data.prepMin, data.prepSec, data.prepAlarms);
@@ -210,11 +240,13 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
   const onSubmitBP = (data: BPFormData) => {
     const duration = getSeconds(data.speechMin, data.speechSec);
     const titles = ["1° Alta Gobierno", "1° Alta oposición", "2° Alta Gobierno", "2° Alta oposición", "1° Baja Gobierno", "1° Baja Oposición", "2° Baja Gobierno", "2° Baja Oposición"];
+    
     const queue: Speech[] = titles.map((title, i) => ({
       id: `bp-${i}`,
       title,
       duration: duration,
-      protectedSeconds: data.protectedSeconds
+      protectedSeconds: data.protectedSeconds,
+      alarmTimes: getAlarmTimes(duration, data.protectedSeconds, false)
     }));
 
     const prep = getPrepSpeech(data.prepEnabled, data.prepMin, data.prepSec, data.prepAlarms);
@@ -224,12 +256,16 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
   };
 
   const onSubmitCustom = (data: CustomFormData) => {
-    const queue: Speech[] = data.speeches.map((s, i) => ({
-      id: `custom-${i}-${Date.now()}`,
-      title: s.title,
-      duration: getSeconds(s.durationMin, s.durationSec),
-      protectedSeconds: data.protectedSeconds,
-    }));
+    const queue: Speech[] = data.speeches.map((s, i) => {
+      const dur = getSeconds(s.durationMin, s.durationSec);
+      return {
+        id: `custom-${i}-${Date.now()}`,
+        title: s.title,
+        duration: dur,
+        protectedSeconds: data.protectedSeconds,
+        alarmTimes: getAlarmTimes(dur, data.protectedSeconds, false)
+      };
+    });
 
     const prep = getPrepSpeech(data.prepEnabled, data.prepMin, data.prepSec, data.prepAlarms);
     if (prep) queue.unshift(prep);
@@ -263,7 +299,7 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
               
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos</label>
-                <input type="number" {...wsdcForm.register('protectedSeconds', { required: true, min: 0 })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none" />
+                <input type="number" {...wsdcForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none" />
               </div>
 
               <TimeInput 
@@ -284,11 +320,28 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
                 secRegister={wsdcForm.register('speech3Sec', { required: true, min: 0, max: 59 })}
               />
 
-              <TimeInput 
-                label="Discursos de Réplica" 
-                minRegister={wsdcForm.register('speech4Min', { required: true, min: 0 })}
-                secRegister={wsdcForm.register('speech4Sec', { required: true, min: 0, max: 59 })}
-              />
+              <div className="border-t border-slate-800 my-2 pt-2">
+                <TimeInput 
+                  label="Discursos de Réplica" 
+                  minRegister={wsdcForm.register('speech4Min', { required: true, min: 0 })}
+                  secRegister={wsdcForm.register('speech4Sec', { required: true, min: 0, max: 59 })}
+                />
+                
+                <div className="mt-3 p-3 bg-sky-900/20 rounded-lg border border-sky-800/50">
+                   <div className="flex items-center gap-2 mb-2 text-sky-400">
+                      <BellRing className="w-4 h-4" />
+                      <h3 className="text-xs font-bold uppercase tracking-wider">Alarma Réplica</h3>
+                   </div>
+                   <TimeInput 
+                      label="Sonar cuando falten:"
+                      minRegister={wsdcForm.register('replyAlarmMin', { required: true, min: 0 })}
+                      secRegister={wsdcForm.register('replyAlarmSec', { required: true, min: 0, max: 59 })}
+                   />
+                   <p className="text-[10px] text-slate-400 mt-2 text-center">
+                      La campana sonará una única vez cuando quede este tiempo.
+                   </p>
+                </div>
+              </div>
               
               <button type="submit" className="w-full mt-4 bg-sky-600 hover:bg-sky-500 transition-all duration-300 rounded-lg py-3 text-lg font-semibold text-white shadow-lg shadow-sky-900/20">
                 Iniciar Debate
@@ -304,7 +357,7 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
               <h2 className="text-2xl font-bold text-center text-white mb-4">Configuración BP</h2>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos</label>
-                <input type="number" {...bpForm.register('protectedSeconds', { required: true, min: 0 })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+                <input type="number" {...bpForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
               </div>
               
               <TimeInput 
@@ -327,7 +380,7 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
               <h2 className="text-2xl font-bold text-center text-white mb-4">Formato Personalizado</h2>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos (Global)</label>
-                <input type="number" {...customForm.register('protectedSeconds', { required: true, min: 0 })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
+                <input type="number" {...customForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
               </div>
 
               <div className="border-t border-slate-600 my-2"></div>
