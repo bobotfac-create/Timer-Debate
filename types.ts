@@ -8,6 +8,8 @@ export interface Speech {
   title: string;
   duration: number; // in seconds
   protectedSeconds: number; // in seconds (for start and end)
+  isPrep?: boolean; // Is this a preparation time block?
+  alarmTimes?: number[]; // Specific elapsed seconds to ring the bell (for prep time)
 }
 
 export interface BellSettings {

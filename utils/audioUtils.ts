@@ -5,6 +5,18 @@ export const initAudioContext = (): AudioContext => {
   return new AudioContextClass();
 };
 
+// Fix for iOS: Plays a silent buffer to unlock the AudioContext on user interaction
+export const unlockAudioContext = (ctx: AudioContext) => {
+  if (ctx.state === 'suspended') {
+    ctx.resume();
+  }
+  const buffer = ctx.createBuffer(1, 1, 22050);
+  const source = ctx.createBufferSource();
+  source.buffer = buffer;
+  source.connect(ctx.destination);
+  source.start(0);
+};
+
 const createOscillator = (ctx: AudioContext, freq: number, type: OscillatorType, startTime: number, duration: number, gainVal: number) => {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();

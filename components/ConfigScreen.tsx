@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
-import { useForm, useFieldArray, UseFormRegisterReturn } from 'react-hook-form';
+import React from 'react';
+import { useForm, useFieldArray, UseFormRegisterReturn, UseFormRegister, FieldValues, Path } from 'react-hook-form';
 import { FormatType, Speech } from '../types';
-import { ArrowLeft, Play, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, Trash2, Plus, Clock } from 'lucide-react';
 
 interface Props {
   format: FormatType;
@@ -9,22 +9,29 @@ interface Props {
   onStart: (queue: Speech[]) => void;
 }
 
-// Interfaces para los formularios actualizadas para Min/Seg
-interface WSDCFormData {
-  protectedSeconds: number;
-  speech1Min: number; speech1Sec: number; // Principal
-  speech2Min: number; speech2Sec: number; // Medios
-  speech3Min: number; speech3Sec: number; // Finales
-  speech4Min: number; speech4Sec: number; // Réplica
+// Interfaces updated to include Prep Time fields
+interface CommonFormData {
+  prepEnabled: boolean;
+  prepMin: number;
+  prepSec: number;
+  prepAlarms: string; // Comma separated string "1, 5, 8"
 }
 
-interface BPFormData {
+interface WSDCFormData extends CommonFormData {
+  protectedSeconds: number;
+  speech1Min: number; speech1Sec: number;
+  speech2Min: number; speech2Sec: number;
+  speech3Min: number; speech3Sec: number;
+  speech4Min: number; speech4Sec: number;
+}
+
+interface BPFormData extends CommonFormData {
   protectedSeconds: number;
   speechMin: number; 
   speechSec: number;
 }
 
-interface CustomFormData {
+interface CustomFormData extends CommonFormData {
   protectedSeconds: number;
   speeches: {
     title: string;
@@ -33,7 +40,7 @@ interface CustomFormData {
   }[];
 }
 
-// Componente reutilizable para Input de Tiempo (Min : Seg)
+// Reusable Time Input Component
 const TimeInput = ({ 
   label, 
   minRegister, 
@@ -72,30 +79,78 @@ const TimeInput = ({
   </div>
 );
 
+// Reusable Prep Time Section Component
+const PrepConfigSection = <T extends FieldValues>({ 
+  register, 
+  enabled 
+}: { 
+  register: UseFormRegister<T>, 
+  enabled: boolean 
+}) => (
+  <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-4">
+    <div className="flex items-center gap-2 mb-3">
+      <input 
+        type="checkbox" 
+        id="prepEnabled"
+        {...register("prepEnabled" as Path<T>)} 
+        className="w-5 h-5 rounded border-slate-600 text-sky-600 focus:ring-sky-500 bg-slate-700"
+      />
+      <label htmlFor="prepEnabled" className="text-white font-medium flex items-center gap-2 cursor-pointer">
+        <Clock className="w-4 h-4 text-sky-400" />
+        Tiempo de Preparación
+      </label>
+    </div>
+
+    {enabled && (
+      <div className="pl-7 space-y-4 animate-in slide-in-from-top-2 duration-200">
+        <TimeInput 
+          label="Duración"
+          minRegister={register("prepMin" as Path<T>, { valueAsNumber: true })}
+          secRegister={register("prepSec" as Path<T>, { valueAsNumber: true })}
+        />
+        <div>
+          <label className="block text-sm font-medium text-slate-300 mb-1">
+            Alarmas Intermedias (minutos restantes)
+          </label>
+          <input 
+            type="text" 
+            {...register("prepAlarms" as Path<T>)}
+            placeholder="Ej: 8, 5, 1" 
+            className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white text-sm focus:ring-2 focus:ring-sky-500 outline-none" 
+          />
+          <p className="text-xs text-slate-500 mt-1">Separa con comas los minutos donde sonará la alarma (ej: cuando falten 5 min).</p>
+        </div>
+      </div>
+    )}
+  </div>
+);
+
 export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
-  // Hooks para cada tipo de formulario
+  // Hooks for each form type
   const wsdcForm = useForm<WSDCFormData>({
     defaultValues: {
       protectedSeconds: 60,
       speech1Min: 8, speech1Sec: 0,
       speech2Min: 8, speech2Sec: 0,
       speech3Min: 8, speech3Sec: 0,
-      speech4Min: 4, speech4Sec: 0
+      speech4Min: 4, speech4Sec: 0,
+      prepEnabled: false, prepMin: 15, prepSec: 0, prepAlarms: ""
     }
   });
 
   const bpForm = useForm<BPFormData>({
     defaultValues: {
       protectedSeconds: 60,
-      speechMin: 7,
-      speechSec: 0
+      speechMin: 7, speechSec: 0,
+      prepEnabled: false, prepMin: 15, prepSec: 0, prepAlarms: ""
     }
   });
 
   const customForm = useForm<CustomFormData>({
     defaultValues: { 
       protectedSeconds: 60,
-      speeches: [{ title: "Discurso 1", durationMin: 5, durationSec: 0 }] 
+      speeches: [{ title: "Discurso 1", durationMin: 5, durationSec: 0 }],
+      prepEnabled: false, prepMin: 15, prepSec: 0, prepAlarms: ""
     }
   });
 
@@ -104,10 +159,31 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
     name: "speeches"
   });
 
-  // Helpers para calcular segundos totales
+  // Helpers
   const getSeconds = (min: number, sec: number) => (Number(min) * 60) + Number(sec);
 
-  // Manejadores de envío
+  const getPrepSpeech = (enabled: boolean, min: number, sec: number, alarmsStr: string): Speech | null => {
+    if (!enabled) return null;
+    
+    const duration = getSeconds(min, sec);
+    // Parse alarms string "1, 5" -> [60, 300]
+    const alarmTimes = alarmsStr
+      .split(',')
+      .map(s => parseInt(s.trim()))
+      .filter(n => !isNaN(n) && n > 0)
+      .map(min => min * 60);
+
+    return {
+      id: 'prep-time',
+      title: 'Tiempo de Preparación',
+      duration: duration,
+      protectedSeconds: 0,
+      isPrep: true,
+      alarmTimes: alarmTimes
+    };
+  };
+
+  // Submit Handlers
   const onSubmitWSDC = (data: WSDCFormData) => {
     const s1 = getSeconds(data.speech1Min, data.speech1Sec);
     const s2 = getSeconds(data.speech2Min, data.speech2Sec);
@@ -115,27 +191,35 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
     const s4 = getSeconds(data.speech4Min, data.speech4Sec);
 
     const queue: Speech[] = [
-      { id: '1', title: 'Prop. Team 1', duration: s1, protectedSeconds: data.protectedSeconds },
-      { id: '2', title: 'Opp. Team 1', duration: s1, protectedSeconds: data.protectedSeconds },
-      { id: '3', title: 'Prop. Team 2', duration: s2, protectedSeconds: data.protectedSeconds },
-      { id: '4', title: 'Opp. Team 2', duration: s2, protectedSeconds: data.protectedSeconds },
-      { id: '5', title: 'Prop. Team 3', duration: s3, protectedSeconds: data.protectedSeconds },
-      { id: '6', title: 'Opp. Team 3', duration: s3, protectedSeconds: data.protectedSeconds },
-      { id: '7', title: 'Opp. Reply', duration: s4, protectedSeconds: Math.max(0, data.protectedSeconds / 2) },
-      { id: '8', title: 'Prop. Reply', duration: s4, protectedSeconds: Math.max(0, data.protectedSeconds / 2) },
+      { id: '1', title: 'Introducción Gobierno', duration: s1, protectedSeconds: data.protectedSeconds },
+      { id: '2', title: 'Introducción Oposición', duration: s1, protectedSeconds: data.protectedSeconds },
+      { id: '3', title: 'Argumentación Gobierno', duration: s2, protectedSeconds: data.protectedSeconds },
+      { id: '4', title: 'Argumentación Oposición', duration: s2, protectedSeconds: data.protectedSeconds },
+      { id: '5', title: 'Contra Gobierno', duration: s3, protectedSeconds: data.protectedSeconds },
+      { id: '6', title: 'Contra Oposición', duration: s3, protectedSeconds: data.protectedSeconds },
+      { id: '7', title: 'Replica Oposición', duration: s4, protectedSeconds: Math.max(0, data.protectedSeconds / 2) },
+      { id: '8', title: 'Replica Gobierno', duration: s4, protectedSeconds: Math.max(0, data.protectedSeconds / 2) },
     ];
+
+    const prep = getPrepSpeech(data.prepEnabled, data.prepMin, data.prepSec, data.prepAlarms);
+    if (prep) queue.unshift(prep);
+
     onStart(queue);
   };
 
   const onSubmitBP = (data: BPFormData) => {
     const duration = getSeconds(data.speechMin, data.speechSec);
-    const titles = ["PM", "LO", "DPM", "DLO", "MG", "MO", "GW", "OW"];
+    const titles = ["1° Alta Gobierno", "1° Alta oposición", "2° Alta Gobierno", "2° Alta oposición", "1° Baja Gobierno", "1° Baja Oposición", "2° Baja Gobierno", "2° Baja Oposición"];
     const queue: Speech[] = titles.map((title, i) => ({
       id: `bp-${i}`,
       title,
       duration: duration,
       protectedSeconds: data.protectedSeconds
     }));
+
+    const prep = getPrepSpeech(data.prepEnabled, data.prepMin, data.prepSec, data.prepAlarms);
+    if (prep) queue.unshift(prep);
+
     onStart(queue);
   };
 
@@ -146,6 +230,10 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
       duration: getSeconds(s.durationMin, s.durationSec),
       protectedSeconds: data.protectedSeconds,
     }));
+
+    const prep = getPrepSpeech(data.prepEnabled, data.prepMin, data.prepSec, data.prepAlarms);
+    if (prep) queue.unshift(prep);
+
     onStart(queue);
   };
 
@@ -168,7 +256,9 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
           
           {/* WSDC Form */}
           {format === 'WSDC' && (
-            <form id="wsdc-form" onSubmit={wsdcForm.handleSubmit(onSubmitWSDC)} className="flex flex-col gap-4 animate-in fade-in duration-300">
+            <form onSubmit={wsdcForm.handleSubmit(onSubmitWSDC)} className="flex flex-col gap-4 animate-in fade-in duration-300">
+              <PrepConfigSection register={wsdcForm.register} enabled={wsdcForm.watch('prepEnabled')} />
+              
               <h2 className="text-2xl font-bold text-center text-white mb-4">Configuración WSDC</h2>
               
               <div>
@@ -208,7 +298,9 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
 
           {/* BP Form */}
           {format === 'BP' && (
-            <form id="bp-form" onSubmit={bpForm.handleSubmit(onSubmitBP)} className="flex flex-col gap-4 animate-in fade-in duration-300">
+            <form onSubmit={bpForm.handleSubmit(onSubmitBP)} className="flex flex-col gap-4 animate-in fade-in duration-300">
+              <PrepConfigSection register={bpForm.register} enabled={bpForm.watch('prepEnabled')} />
+
               <h2 className="text-2xl font-bold text-center text-white mb-4">Configuración BP</h2>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos</label>
@@ -229,7 +321,9 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
 
           {/* Custom Form */}
           {format === 'Custom' && (
-            <form id="custom-form" onSubmit={customForm.handleSubmit(onSubmitCustom)} className="flex flex-col gap-4 animate-in fade-in duration-300">
+            <form onSubmit={customForm.handleSubmit(onSubmitCustom)} className="flex flex-col gap-4 animate-in fade-in duration-300">
+              <PrepConfigSection register={customForm.register} enabled={customForm.watch('prepEnabled')} />
+
               <h2 className="text-2xl font-bold text-center text-white mb-4">Formato Personalizado</h2>
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos (Global)</label>
