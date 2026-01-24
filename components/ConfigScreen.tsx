@@ -1,12 +1,13 @@
 import React from 'react';
 import { useForm, useFieldArray, UseFormRegisterReturn, UseFormRegister, FieldValues, Path } from 'react-hook-form';
-import { FormatType, Speech } from '../types';
+import { FormatType, Speech, Theme } from '../types';
 import { ArrowLeft, Trash2, Plus, Clock, BellRing } from 'lucide-react';
 
 interface Props {
   format: FormatType;
   onBack: () => void;
   onStart: (queue: Speech[]) => void;
+  theme: Theme;
 }
 
 // Interfaces updated to include Prep Time fields
@@ -47,36 +48,46 @@ interface CustomFormData extends CommonFormData {
 const TimeInput = ({ 
   label, 
   minRegister, 
-  secRegister 
+  secRegister,
+  isSteampunk = false
 }: { 
   label: string, 
   minRegister: UseFormRegisterReturn, 
-  secRegister: UseFormRegisterReturn 
+  secRegister: UseFormRegisterReturn,
+  isSteampunk?: boolean
 }) => (
   <div>
-    <label className="block text-sm font-medium text-slate-300 mb-1">{label}</label>
+    <label className={`block text-sm font-medium mb-1 ${isSteampunk ? 'steampunk-subtitle' : 'text-slate-300'}`}>{label}</label>
     <div className="flex items-center gap-2">
       <div className="relative flex-1">
         <input 
           type="number" 
           min="0"
           {...minRegister} 
-          className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none text-center" 
+          className={`w-full rounded-md p-2 outline-none text-center ${
+            isSteampunk 
+            ? 'steampunk-display border-2 border-amber-700' 
+            : 'bg-slate-700 border border-slate-600 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500'
+          }`}
           placeholder="0"
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">min</span>
+        <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none ${isSteampunk ? 'text-amber-300' : 'text-slate-400'}`}>min</span>
       </div>
-      <span className="text-slate-400 font-bold">:</span>
+      <span className={isSteampunk ? 'text-amber-300 font-bold' : 'text-slate-400 font-bold'}>:</span>
       <div className="relative flex-1">
         <input 
           type="number" 
           min="0"
           max="59"
           {...secRegister} 
-          className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none text-center" 
+          className={`w-full rounded-md p-2 outline-none text-center ${
+            isSteampunk 
+            ? 'steampunk-display border-2 border-amber-700' 
+            : 'bg-slate-700 border border-slate-600 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500'
+          }`}
           placeholder="00"
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">seg</span>
+        <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none ${isSteampunk ? 'text-amber-300' : 'text-slate-400'}`}>seg</span>
       </div>
     </div>
   </div>
@@ -85,21 +96,46 @@ const TimeInput = ({
 // Reusable Prep Time Section Component
 const PrepConfigSection = <T extends FieldValues>({ 
   register, 
-  enabled 
+  enabled,
+  isSteampunk = false
 }: { 
   register: UseFormRegister<T>, 
-  enabled: boolean 
+  enabled: boolean,
+  isSteampunk?: boolean
 }) => (
-  <div className="bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-4">
+    <div className={isSteampunk ? "steampunk-panel mb-4" : "bg-slate-800/50 p-4 rounded-lg border border-slate-700 mb-4"}>
     <div className="flex items-center gap-2 mb-3">
-      <input 
-        type="checkbox" 
-        id="prepEnabled"
-        {...register("prepEnabled" as Path<T>)} 
-        className="w-5 h-5 rounded border-slate-600 text-sky-600 focus:ring-sky-500 bg-slate-700"
-      />
-      <label htmlFor="prepEnabled" className="text-white font-medium flex items-center gap-2 cursor-pointer">
-        <Clock className="w-4 h-4 text-sky-400" />
+      <label htmlFor="prepEnabled" className={`font-medium flex items-center gap-2 cursor-pointer ${isSteampunk ? 'steampunk-subtitle' : 'text-white'}`}>
+        {isSteampunk ? (
+          <div className="relative">
+            <input 
+              type="checkbox" 
+              id="prepEnabled"
+              {...register("prepEnabled" as Path<T>)} 
+              className="hidden"
+            />
+            <div 
+              className={`steampunk-toggle ${enabled ? 'active' : ''}`}
+              onClick={(e) => {
+                e.preventDefault();
+                const input = document.getElementById('prepEnabled') as HTMLInputElement;
+                if (input) {
+                  input.checked = !input.checked;
+                  const event = new Event('change', { bubbles: true });
+                  input.dispatchEvent(event);
+                }
+              }}
+            />
+          </div>
+        ) : (
+          <input 
+            type="checkbox" 
+            id="prepEnabled"
+            {...register("prepEnabled" as Path<T>)} 
+            className="w-5 h-5 rounded border-slate-600 text-sky-600 focus:ring-sky-500 bg-slate-700"
+          />
+        )}
+        <Clock className={`w-4 h-4 ${isSteampunk ? 'text-amber-200' : 'text-sky-400'}`} />
         Tiempo de Preparación
       </label>
     </div>
@@ -110,25 +146,31 @@ const PrepConfigSection = <T extends FieldValues>({
           label="Duración"
           minRegister={register("prepMin" as Path<T>, { valueAsNumber: true })}
           secRegister={register("prepSec" as Path<T>, { valueAsNumber: true })}
+          isSteampunk={isSteampunk}
         />
         <div>
-          <label className="block text-sm font-medium text-slate-300 mb-1">
+          <label className={`block text-sm font-medium mb-1 ${isSteampunk ? 'steampunk-subtitle' : 'text-slate-300'}`}>
             Alarmas Intermedias (minutos restantes)
           </label>
           <input 
             type="text" 
             {...register("prepAlarms" as Path<T>)}
             placeholder="Ej: 8, 5, 1" 
-            className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white text-sm focus:ring-2 focus:ring-sky-500 outline-none" 
+            className={`w-full rounded-md p-2 text-sm outline-none ${
+              isSteampunk 
+              ? 'steampunk-display border-2 border-amber-700' 
+              : 'bg-slate-700 border border-slate-600 text-white focus:ring-2 focus:ring-sky-500'
+            }`}
           />
-          <p className="text-xs text-slate-500 mt-1">Separa con comas los minutos donde sonará la alarma (ej: cuando falten 5 min).</p>
+          <p className={`text-xs mt-1 ${isSteampunk ? 'steampunk-subtitle text-amber-200/80' : 'text-slate-500'}`}>Separa con comas los minutos donde sonará la alarma (ej: cuando falten 5 min).</p>
         </div>
       </div>
     )}
   </div>
 );
 
-export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
+export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart, theme }) => {
+  const isSteampunk = theme === 'steampunk';
   // Hooks for each form type
   const wsdcForm = useForm<WSDCFormData>({
     defaultValues: {
@@ -273,17 +315,50 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
     onStart(queue);
   };
 
+  const containerClass = isSteampunk
+    ? "flex flex-col h-full steampunk-wood-bg steampunk-steam"
+    : "flex flex-col h-full bg-slate-900";
+
+  const headerClass = isSteampunk
+    ? "flex items-center justify-between p-6 steampunk-panel sticky top-0 z-10"
+    : "flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10";
+
+  const titleClass = isSteampunk
+    ? "steampunk-title text-xl md:text-2xl text-center flex-1"
+    : "text-xl font-semibold text-white";
+
+  const sectionTitleClass = isSteampunk
+    ? "steampunk-title text-2xl md:text-3xl text-center mb-4"
+    : "text-2xl font-bold text-center text-white mb-4";
+
+  const inputClass = isSteampunk
+    ? "w-full steampunk-display border-2 border-amber-700 rounded-md p-2 outline-none"
+    : "w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none";
+
+  const buttonClass = (color: string) => isSteampunk
+    ? "w-full mt-4 steampunk-button py-3 text-lg font-semibold rounded-lg"
+    : `w-full mt-4 transition-all duration-300 rounded-lg py-3 text-lg font-semibold text-white shadow-lg ${
+        color === 'sky' ? 'bg-sky-600 hover:bg-sky-500 shadow-sky-900/20' :
+        color === 'indigo' ? 'bg-indigo-600 hover:bg-indigo-500 shadow-indigo-900/20' :
+        'bg-teal-600 hover:bg-teal-500 shadow-teal-900/20'
+      }`;
+
   return (
-    <div className="flex flex-col h-full bg-slate-900">
+    <div className={containerClass}>
       {/* Header */}
-      <div className="flex items-center justify-between p-6 border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-10">
-        <button onClick={onBack} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
+      <div className={headerClass}>
+        <button onClick={onBack} className={`p-2 rounded-full transition-colors ${isSteampunk ? 'steampunk-button' : 'hover:bg-slate-800 text-slate-400 hover:text-white'}`}>
           <ArrowLeft className="w-6 h-6" />
         </button>
-        <h2 className="text-xl font-semibold text-white">
-          Configuración {format}
+        <h2 className={titleClass}>
+          {isSteampunk ? "Configuración de Formato Personalizado" : `Configuración ${format}`}
         </h2>
-        <div className="w-10"></div>
+        {isSteampunk && (
+          <button className="steampunk-button px-4 py-2">
+            <span className="steampunk-subtitle">Guardar</span>
+          </button>
+        )}
+        {!isSteampunk && <div className="w-10"></div>}
       </div>
 
       {/* Content */}
@@ -293,57 +368,62 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
           {/* WSDC Form */}
           {format === 'WSDC' && (
             <form onSubmit={wsdcForm.handleSubmit(onSubmitWSDC)} className="flex flex-col gap-4 animate-in fade-in duration-300">
-              <PrepConfigSection register={wsdcForm.register} enabled={wsdcForm.watch('prepEnabled')} />
+              <PrepConfigSection register={wsdcForm.register} enabled={wsdcForm.watch('prepEnabled')} isSteampunk={isSteampunk} />
               
-              <h2 className="text-2xl font-bold text-center text-white mb-4">Configuración WSDC</h2>
+              <h2 className={sectionTitleClass}>Configuración WSDC</h2>
               
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos</label>
-                <input type="number" {...wsdcForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 outline-none" />
+                <label className={`block text-sm font-medium mb-1 ${isSteampunk ? 'steampunk-subtitle' : 'text-slate-300'}`}>Segundos protegidos</label>
+                <input type="number" {...wsdcForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className={inputClass} />
               </div>
 
               <TimeInput 
                 label="Discursos Principales (1er Orador)" 
                 minRegister={wsdcForm.register('speech1Min', { required: true, min: 0 })}
                 secRegister={wsdcForm.register('speech1Sec', { required: true, min: 0, max: 59 })}
+                isSteampunk={isSteampunk}
               />
 
               <TimeInput 
                 label="Discursos Medios (2do Orador)" 
                 minRegister={wsdcForm.register('speech2Min', { required: true, min: 0 })}
                 secRegister={wsdcForm.register('speech2Sec', { required: true, min: 0, max: 59 })}
+                isSteampunk={isSteampunk}
               />
 
               <TimeInput 
                 label="Discursos Finales (3er Orador)" 
                 minRegister={wsdcForm.register('speech3Min', { required: true, min: 0 })}
                 secRegister={wsdcForm.register('speech3Sec', { required: true, min: 0, max: 59 })}
+                isSteampunk={isSteampunk}
               />
 
-              <div className="border-t border-slate-800 my-2 pt-2">
+              <div className={isSteampunk ? "steampunk-panel my-2 pt-2" : "border-t border-slate-800 my-2 pt-2"}>
                 <TimeInput 
                   label="Discursos de Réplica" 
                   minRegister={wsdcForm.register('speech4Min', { required: true, min: 0 })}
                   secRegister={wsdcForm.register('speech4Sec', { required: true, min: 0, max: 59 })}
+                  isSteampunk={isSteampunk}
                 />
                 
-                <div className="mt-3 p-3 bg-sky-900/20 rounded-lg border border-sky-800/50">
-                   <div className="flex items-center gap-2 mb-2 text-sky-400">
+                <div className={isSteampunk ? "mt-3 p-3 steampunk-panel" : "mt-3 p-3 bg-sky-900/20 rounded-lg border border-sky-800/50"}>
+                   <div className={`flex items-center gap-2 mb-2 ${isSteampunk ? 'text-amber-200' : 'text-sky-400'}`}>
                       <BellRing className="w-4 h-4" />
-                      <h3 className="text-xs font-bold uppercase tracking-wider">Alarma Réplica</h3>
+                      <h3 className={`text-xs font-bold uppercase tracking-wider ${isSteampunk ? 'steampunk-subtitle' : ''}`}>Alarma Réplica</h3>
                    </div>
                    <TimeInput 
                       label="Sonar cuando falten:"
                       minRegister={wsdcForm.register('replyAlarmMin', { required: true, min: 0 })}
                       secRegister={wsdcForm.register('replyAlarmSec', { required: true, min: 0, max: 59 })}
+                      isSteampunk={isSteampunk}
                    />
-                   <p className="text-[10px] text-slate-400 mt-2 text-center">
+                   <p className={`text-[10px] mt-2 text-center ${isSteampunk ? 'steampunk-subtitle text-amber-200/80' : 'text-slate-400'}`}>
                       La campana sonará una única vez cuando quede este tiempo.
                    </p>
                 </div>
               </div>
               
-              <button type="submit" className="w-full mt-4 bg-sky-600 hover:bg-sky-500 transition-all duration-300 rounded-lg py-3 text-lg font-semibold text-white shadow-lg shadow-sky-900/20">
+              <button type="submit" className={buttonClass('sky')}>
                 Iniciar Debate
               </button>
             </form>
@@ -352,21 +432,22 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
           {/* BP Form */}
           {format === 'BP' && (
             <form onSubmit={bpForm.handleSubmit(onSubmitBP)} className="flex flex-col gap-4 animate-in fade-in duration-300">
-              <PrepConfigSection register={bpForm.register} enabled={bpForm.watch('prepEnabled')} />
+              <PrepConfigSection register={bpForm.register} enabled={bpForm.watch('prepEnabled')} isSteampunk={isSteampunk} />
 
-              <h2 className="text-2xl font-bold text-center text-white mb-4">Configuración BP</h2>
+              <h2 className={sectionTitleClass}>Configuración BP</h2>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos</label>
-                <input type="number" {...bpForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none" />
+                <label className={`block text-sm font-medium mb-1 ${isSteampunk ? 'steampunk-subtitle' : 'text-slate-300'}`}>Segundos protegidos</label>
+                <input type="number" {...bpForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className={inputClass} />
               </div>
               
               <TimeInput 
                 label="Duración de discursos" 
                 minRegister={bpForm.register('speechMin', { required: true, min: 0 })}
                 secRegister={bpForm.register('speechSec', { required: true, min: 0, max: 59 })}
+                isSteampunk={isSteampunk}
               />
 
-              <button type="submit" className="w-full mt-4 bg-indigo-600 hover:bg-indigo-500 transition-all duration-300 rounded-lg py-3 text-lg font-semibold text-white shadow-lg shadow-indigo-900/20">
+              <button type="submit" className={buttonClass('indigo')}>
                 Iniciar Debate
               </button>
             </form>
@@ -375,28 +456,32 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
           {/* Custom Form */}
           {format === 'Custom' && (
             <form onSubmit={customForm.handleSubmit(onSubmitCustom)} className="flex flex-col gap-4 animate-in fade-in duration-300">
-              <PrepConfigSection register={customForm.register} enabled={customForm.watch('prepEnabled')} />
+              <PrepConfigSection register={customForm.register} enabled={customForm.watch('prepEnabled')} isSteampunk={isSteampunk} />
 
-              <h2 className="text-2xl font-bold text-center text-white mb-4">Formato Personalizado</h2>
+              <h2 className={sectionTitleClass}>Formato Personalizado</h2>
               <div>
-                <label className="block text-sm font-medium text-slate-300 mb-1">Segundos protegidos (Global)</label>
-                <input type="number" {...customForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-none" />
+                <label className={`block text-sm font-medium mb-1 ${isSteampunk ? 'steampunk-subtitle' : 'text-slate-300'}`}>Segundos protegidos (Global)</label>
+                <input type="number" {...customForm.register('protectedSeconds', { required: true, min: 0, valueAsNumber: true })} className={inputClass} />
               </div>
 
-              <div className="border-t border-slate-600 my-2"></div>
-              <h3 className="text-lg font-semibold text-center text-slate-200 mb-2">Discursos</h3>
+              <div className={isSteampunk ? "steampunk-panel my-2" : "border-t border-slate-600 my-2"}></div>
+              <h3 className={`text-lg font-semibold text-center mb-2 ${isSteampunk ? 'steampunk-subtitle' : 'text-slate-200'}`}>Discursos</h3>
               
               <div className="flex flex-col gap-3 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="flex flex-col gap-2 p-3 bg-slate-800/50 border border-slate-700 rounded-lg animate-in slide-in-from-bottom-2 duration-200">
+                  <div key={field.id} className={`flex flex-col gap-2 p-3 rounded-lg animate-in slide-in-from-bottom-2 duration-200 ${isSteampunk ? 'steampunk-card' : 'bg-slate-800/50 border border-slate-700'}`}>
                     <div className="flex items-center justify-between gap-2">
                         <input 
                           type="text" 
                           {...customForm.register(`speeches.${index}.title` as const, { required: true })}
                           placeholder="Nombre del discurso" 
-                          className="flex-grow text-sm bg-slate-700 border border-slate-600 rounded-md p-2 text-white focus:ring-1 focus:ring-teal-500 outline-none" 
+                          className={`flex-grow text-sm rounded-md p-2 outline-none ${
+                            isSteampunk 
+                            ? 'steampunk-display border-2 border-amber-700' 
+                            : 'bg-slate-700 border border-slate-600 text-white focus:ring-1 focus:ring-teal-500'
+                          }`}
                         />
-                        <button type="button" onClick={() => remove(index)} disabled={fields.length <= 1} className="p-2 text-slate-400 hover:text-rose-500 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors rounded-full">
+                        <button type="button" onClick={() => remove(index)} disabled={fields.length <= 1} className={`p-2 rounded-full transition-colors ${isSteampunk ? 'steampunk-button disabled:opacity-30' : 'text-slate-400 hover:text-rose-500 disabled:text-slate-600 disabled:cursor-not-allowed'}`}>
                           <Trash2 className="w-5 h-5" />
                         </button>
                     </div>
@@ -407,33 +492,41 @@ export const ConfigScreen: React.FC<Props> = ({ format, onBack, onStart }) => {
                             type="number" 
                             min="0"
                             {...customForm.register(`speeches.${index}.durationMin` as const, { required: true, min: 0 })}
-                            className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white text-center focus:ring-1 focus:ring-teal-500 outline-none" 
+                            className={`w-full rounded-md p-2 text-center outline-none ${
+                              isSteampunk 
+                              ? 'steampunk-display border-2 border-amber-700' 
+                              : 'bg-slate-700 border border-slate-600 text-white focus:ring-1 focus:ring-teal-500'
+                            }`}
                             placeholder="Min"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">m</span>
+                          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none ${isSteampunk ? 'text-amber-300' : 'text-slate-400'}`}>m</span>
                         </div>
-                        <span className="text-slate-500">:</span>
+                        <span className={isSteampunk ? 'text-amber-300' : 'text-slate-500'}>:</span>
                         <div className="relative flex-1">
                           <input 
                             type="number" 
                             min="0"
                             max="59"
                             {...customForm.register(`speeches.${index}.durationSec` as const, { required: true, min: 0, max: 59 })}
-                            className="w-full bg-slate-700 border border-slate-600 rounded-md p-2 text-white text-center focus:ring-1 focus:ring-teal-500 outline-none" 
+                            className={`w-full rounded-md p-2 text-center outline-none ${
+                              isSteampunk 
+                              ? 'steampunk-display border-2 border-amber-700' 
+                              : 'bg-slate-700 border border-slate-600 text-white focus:ring-1 focus:ring-teal-500'
+                            }`}
                             placeholder="Seg"
                           />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400 pointer-events-none">s</span>
+                          <span className={`absolute right-2 top-1/2 -translate-y-1/2 text-xs pointer-events-none ${isSteampunk ? 'text-amber-300' : 'text-slate-400'}`}>s</span>
                         </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <button type="button" onClick={() => append({ title: `Discurso ${fields.length + 1}`, durationMin: 5, durationSec: 0 })} className="w-full mt-2 bg-slate-600 hover:bg-slate-500 transition-all duration-300 rounded-lg py-2 text-sm font-semibold flex items-center justify-center gap-2">
+              <button type="button" onClick={() => append({ title: `Discurso ${fields.length + 1}`, durationMin: 5, durationSec: 0 })} className={`w-full mt-2 transition-all duration-300 rounded-lg py-2 text-sm font-semibold flex items-center justify-center gap-2 ${isSteampunk ? 'steampunk-button' : 'bg-slate-600 hover:bg-slate-500'}`}>
                 <Plus className="w-4 h-4" /> Agregar Discurso
               </button>
 
-              <button type="submit" className="w-full mt-4 bg-teal-600 hover:bg-teal-500 transition-all duration-300 rounded-lg py-3 text-lg font-semibold text-white shadow-lg shadow-teal-900/20">
+              <button type="submit" className={buttonClass('teal')}>
                 Iniciar Debate
               </button>
             </form>
