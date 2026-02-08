@@ -1,13 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, Search, Filter, Shuffle, Tag, Layers, Bookmark, Loader2 } from 'lucide-react';
+import { ArrowLeft, Search, Filter, Shuffle, Tag, Layers, Bookmark, Loader2, Lock } from 'lucide-react';
 import { Motion, MOTIONS_REPOSITORY } from '../data/motions'; // Fallback type
 import { MotionsRepository } from '../data/motionsRepository';
+import { useAuth } from '../../auth/context/AuthContext';
 
 interface Props {
   onBack: () => void;
 }
 
 export const MotionGeneratorScreen: React.FC<Props> = ({ onBack }) => {
+  const { isPro } = useAuth();
   const [motions, setMotions] = useState<Motion[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -29,6 +31,7 @@ export const MotionGeneratorScreen: React.FC<Props> = ({ onBack }) => {
 
   // Load Data
   useEffect(() => {
+      if (!isPro) return;
       const loadMotions = async () => {
           setIsLoading(true);
           const data = await MotionsRepository.getAll();
@@ -36,7 +39,41 @@ export const MotionGeneratorScreen: React.FC<Props> = ({ onBack }) => {
           setIsLoading(false);
       };
       loadMotions();
-  }, []);
+  }, [isPro]);
+
+  if (!isPro) {
+      return (
+        <div className={`flex flex-col h-full ${containerClass} overflow-hidden`}>
+            <div className={`flex flex-col border-b sticky top-0 z-20 backdrop-blur-md ${headerBgClass}`}>
+                <div className="flex items-center justify-between p-6">
+                <button onClick={onBack} className="p-2 rounded-full transition-colors hover:bg-slate-800 text-slate-400 hover:text-white">
+                    <ArrowLeft className="w-6 h-6" />
+                </button>
+                <h1 className={`text-xl flex items-center gap-2 ${titleClass}`}>
+                    <Layers className="w-5 h-5 text-pink-400" />
+                    Banco de Mociones
+                </h1>
+                <div className="w-10"></div>
+                </div>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95">
+                 <div className="bg-slate-800 p-6 rounded-full mb-6 relative group">
+                    <Layers className="w-12 h-12 text-slate-600 group-hover:text-pink-500 transition-colors" />
+                    <div className="absolute -top-2 -right-2 bg-pink-500 rounded-full p-2 border-4 border-slate-900">
+                        <Lock className="w-4 h-4 text-white" />
+                    </div>
+                 </div>
+                 <h2 className="text-2xl font-bold text-white mb-2">Acceso Restringido</h2>
+                 <p className="text-slate-400 max-w-md mb-8">
+                    El generador y banco de mociones es una herramienta exclusiva para usuarios Pro.
+                 </p>
+                 <div className="px-4 py-2 bg-slate-800 rounded-lg text-sm text-slate-500 border border-slate-700">
+                    Plan Pro requerido
+                 </div>
+            </div>
+        </div>
+      );
+  }
 
   // Extract unique categories for filters based on LOADED data
   const topics = useMemo(() => ['Todos', ...Array.from(new Set(motions.map(m => m.topic)))], [motions]);
