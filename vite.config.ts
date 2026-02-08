@@ -4,8 +4,10 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
+  const isCloudflare = env.CF_PAGES === '1';
+
   return {
-    base: '/Timer-Debate/',      // 👈 nombre EXACTO del repo entre barras
+    base: isCloudflare ? '/' : '/Timer-Debate/',
     server: {
       port: 3000,
       host: '0.0.0.0',
