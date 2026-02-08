@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Theme } from '../types';
 import { ArrowLeft, Sparkles, Copy, RefreshCw, AlertCircle, Cpu } from 'lucide-react';
-import { GoogleGenAI } from "@google/genai";
+import { generateMotionFromAI } from '../modules/generator/data/geminiService';
 
 interface Props {
   onBack: () => void;
@@ -40,31 +40,9 @@ export const MotionGeneratorScreen: React.FC<Props> = ({ onBack, theme }) => {
     setResult(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Actúa como un equipo de adjudicación experto de torneos de debate universitarios (formato BP/WSDC). 
-      
-      Genera una moción de debate equilibrada, profunda y debatible basada en los siguientes parámetros:
-      - Temática General: "${topic}"
-      - Tipo de Moción: "${type}"
-      
-      Reglas:
-      1. La moción debe estar en Español.
-      2. Debe ser una oración completa empezando típicamente por "EC...", "ECCQ...", "ECL...", etc.
-      3. No añadidas explicaciones, solo la moción.
-      4. Si es una moción de actor, especifica claramente el actor.
-      5. Asegúrate de que haya carga de la prueba para ambos lados.`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-      });
-
-      const text = response.text;
-      if (text) {
-        setResult(text.trim());
-      } else {
-        throw new Error("No se generó respuesta");
-      }
+      const apiKey = process.env.API_KEY || '';
+      const text = await generateMotionFromAI(topic, type, apiKey);
+      setResult(text);
     } catch (err) {
       console.error(err);
       setError("Error al conectar con el autómata de generación. Verifica tu conexión.");
