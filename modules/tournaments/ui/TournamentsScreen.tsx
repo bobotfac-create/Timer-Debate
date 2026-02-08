@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Calendar, MapPin, User, Mail, Globe, Trophy, List, Grid3X3, ExternalLink, Plus, X, Save, CalendarPlus, Loader2, Clock } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, User, Mail, Globe, Trophy, List, Grid3X3, ExternalLink, Plus, X, Save, CalendarPlus, Loader2, Clock, Lock } from 'lucide-react';
 import { Tournament } from '../data/tournaments';
 import { TournamentsRepository } from '../data/tournamentsRepository';
 import { createGoogleCalendarUrl } from '../utils/calendarUrl';
@@ -25,8 +25,9 @@ export const TournamentsScreen: React.FC<Props> = ({ onBack }) => {
 
   // Cargar datos al montar
   useEffect(() => {
+    if (!isPro) return;
     loadData();
-  }, []);
+  }, [isPro]);
 
   const loadData = async () => {
     setIsLoading(true);
@@ -75,6 +76,40 @@ export const TournamentsScreen: React.FC<Props> = ({ onBack }) => {
         full: date.toLocaleDateString()
     };
   };
+
+  if (!isPro) {
+      return (
+        <div className="flex flex-col h-full bg-slate-900 text-slate-100 overflow-hidden relative">
+            <div className="flex flex-col border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-20">
+                <div className="flex items-center justify-between p-6">
+                    <button onClick={onBack} className="p-2 rounded-full transition-colors hover:bg-slate-800 text-slate-400 hover:text-white">
+                    <ArrowLeft className="w-6 h-6" />
+                    </button>
+                    <h1 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Trophy className="w-5 h-5 text-purple-400" />
+                    Torneos
+                    </h1>
+                    <div className="w-10"></div>
+                </div>
+            </div>
+            <div className="flex-1 flex flex-col items-center justify-center p-6 text-center animate-in fade-in zoom-in-95">
+                 <div className="bg-slate-800 p-6 rounded-full mb-6 relative group">
+                    <Trophy className="w-12 h-12 text-slate-600 group-hover:text-purple-500 transition-colors" />
+                    <div className="absolute -top-2 -right-2 bg-purple-500 rounded-full p-2 border-4 border-slate-900">
+                        <Lock className="w-4 h-4 text-white" />
+                    </div>
+                 </div>
+                 <h2 className="text-2xl font-bold text-white mb-2">Acceso Restringido</h2>
+                 <p className="text-slate-400 max-w-md mb-8">
+                    La gestión y visualización de Torneos es una función exclusiva para usuarios Pro.
+                 </p>
+                 <div className="px-4 py-2 bg-slate-800 rounded-lg text-sm text-slate-500 border border-slate-700">
+                    Plan Pro requerido
+                 </div>
+            </div>
+        </div>
+      );
+  }
 
   return (
     <div className="flex flex-col h-full bg-slate-900 text-slate-100 overflow-hidden relative">

@@ -1,15 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
 // NOTA PARA EL USUARIO:
-// Debes configurar estas variables en tu entorno o reemplazarlas aquí.
-// Si no están configuradas, la app usará un modo "mock" (simulado).
+// Las credenciales ahora se cargan desde las variables de entorno (Vite).
+// Asegúrate de tener un archivo .env con VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY.
 
-const supabaseUrl = process.env.SUPABASE_URL || 'https://cpxhmxtvugnvljknwuqg.supabase.co';
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNweGhteHR2dWdudmxqa253dXFnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njc1NTY2OTQsImV4cCI6MjA4MzEzMjY5NH0.lk6HlPsLsQFP_dWaH_Hsn8OUylqEky0EcZ75kkpqnlI';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Se usa una URL placeholder si no hay configuración para evitar errores al importar,
+// pero isSupabaseConfigured() devolverá false.
+export const supabase = createClient(
+  supabaseUrl || 'https://placeholder.supabase.co',
+  supabaseAnonKey || 'placeholder'
+);
 
 export const isSupabaseConfigured = () => {
-  // Verifica si las variables tienen valor, ya sea por env o por fallback
-  return !!supabaseUrl && !!supabaseAnonKey && supabaseUrl !== 'undefined' && supabaseAnonKey !== 'undefined';
+  // Verifica si las variables tienen valor real y no son los placeholders
+  return !!supabaseUrl && !!supabaseAnonKey &&
+         supabaseUrl !== 'undefined' && supabaseAnonKey !== 'undefined';
 };
