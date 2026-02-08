@@ -66,21 +66,27 @@ export const useDebateTimer = (
   useEffect(() => {
     let interval: number;
 
-    if (timerState === 'running' && currentTime > 0) {
+    if (timerState === 'running') {
       interval = window.setInterval(() => {
-        setCurrentTime((prev) => prev - 1);
+        setCurrentTime((prev) => Math.max(0, prev - 1));
       }, 1000);
-    } else if (currentTime <= 0 && timerState === 'running') {
-      setTimerState('finished');
-      triggerBell(bellSettings.repetitions);
     }
 
     return () => clearInterval(interval);
-  }, [timerState, currentTime, bellSettings.repetitions, triggerBell]);
+  }, [timerState]);
 
-  // Alarm Monitoring
+  // Alarm Monitoring & Finishing Logic
   useEffect(() => {
-    if (timerState !== 'running' || !initialSpeech) return;
+    if (timerState !== 'running') return;
+
+    // Handle timer finishing
+    if (currentTime <= 0) {
+      setTimerState('finished');
+      triggerBell(bellSettings.repetitions);
+      return;
+    }
+
+    if (!initialSpeech) return;
 
     const alarms = initialSpeech.alarmTimes || [];
     
